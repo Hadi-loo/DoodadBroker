@@ -2,6 +2,7 @@ package broker
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"therealbroker/pkg/broker"
 	"time"
@@ -19,8 +20,7 @@ func NewModule() broker.Broker {
 	return &Module{
 		topics:   make(map[string]*Topic),
 		closed:   false,
-		database: NewDatabase(),
-		// TODO
+		database: NewDatabase("postgres"),
 	}
 }
 
@@ -64,6 +64,11 @@ func (m *Module) Publish(ctx context.Context, subject string, msg broker.Message
 
 	createTime := time.Now()
 	messageID := topic.Publish(msg, createTime)
+
+	// should be removed after testing
+	fmt.Println("messageID: ", messageID)
+	//
+
 	return messageID, nil
 }
 

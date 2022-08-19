@@ -1,6 +1,7 @@
 package broker
 
 import (
+	"fmt"
 	"sync"
 	"therealbroker/pkg/broker"
 	"time"
@@ -47,6 +48,7 @@ func (topic *Topic) AddMessage(msg *broker.Message, createTime time.Time) int {
 	messageID := topic.id_generator.GetNewID()
 	err := topic.database.AddMessage(topic.subject, messageID, msg, createTime)
 	if err != nil {
+		fmt.Println(err)
 		return -1 // probably should use log or something
 	}
 
