@@ -71,7 +71,7 @@ func newPostgresDatabase() *PostgreSQL {
 		id 					int,
 		subject 			varchar(255),
 		createTime			timestamp,
-		body				varchar(255),
+		body				varchar,
 		expirationSeconds	float8,
 		PRIMARY KEY 		(subject, id)
 	);`

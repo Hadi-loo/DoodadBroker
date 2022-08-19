@@ -2,7 +2,6 @@ package broker
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"therealbroker/pkg/broker"
 	"time"
@@ -64,10 +63,6 @@ func (m *Module) Publish(ctx context.Context, subject string, msg broker.Message
 
 	createTime := time.Now()
 	messageID := topic.Publish(msg, createTime)
-
-	// should be removed after testing
-	fmt.Println("messageID: ", messageID)
-	//
 
 	return messageID, nil
 }

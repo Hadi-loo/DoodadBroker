@@ -23,7 +23,7 @@ func main() {
 	client := proto.NewBrokerClient(connection)
 	request := &proto.PublishRequest{
 		Subject:           "test",
-		Body:              []byte("test message"),
+		Body:              "test message",
 		ExpirationSeconds: 10,
 	}
 	context1, _ := context.WithTimeout(context.Background(), 10*time.Second)

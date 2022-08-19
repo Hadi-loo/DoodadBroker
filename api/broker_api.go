@@ -75,12 +75,11 @@ func (s *Server) Subscribe(request *proto.SubscribeRequest, stream proto.Broker_
 	}
 
 	for message := range topic {
-		response := &proto.MessageResponse{Body: []byte(message.Body)}
+		response := &proto.MessageResponse{Body: message.Body}
 		if err := stream.Send(response); err != nil {
 			metrics.FailedCalls.WithLabelValues("subscribe").Inc() // should it be here?
 			return ConvertError(err)
 		}
-		// message sent
 	}
 
 	metrics.SuccessfullCalls.WithLabelValues("subscribe").Inc()
@@ -99,7 +98,8 @@ func (s *Server) Fetch(ctx context.Context, request *proto.FetchRequest) (*proto
 		return nil, ConvertError(err)
 	}
 	metrics.SuccessfullCalls.WithLabelValues("fetch").Inc()
-	return &proto.MessageResponse{Body: []byte(msg.Body)}, ConvertError(err)
+
+	return &proto.MessageResponse{Body: msg.Body}, ConvertError(err)
 }
 
 func StartGrpcServer() {

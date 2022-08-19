@@ -20,7 +20,7 @@ service Broker {
 
 message PublishRequest {
   string subject = 1;
-  bytes body = 2;
+  string body = 2;
   int32 expirationSeconds = 3;
 }
 
@@ -33,7 +33,7 @@ message SubscribeRequest {
 }
 
 message MessageResponse {
-  bytes body = 1;
+  string body = 1;
 }
 
 message FetchRequest {
