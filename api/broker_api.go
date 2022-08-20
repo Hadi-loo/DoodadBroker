@@ -73,7 +73,7 @@ func (s *Server) Subscribe(request *proto.SubscribeRequest, stream proto.Broker_
 		metrics.FailedCalls.WithLabelValues("subscribe").Inc()
 		return ConvertError(err)
 	}
-
+	metrics.Subscriptions.Inc()
 	for message := range topic {
 		response := &proto.MessageResponse{Body: message.Body}
 		if err := stream.Send(response); err != nil {
@@ -83,7 +83,7 @@ func (s *Server) Subscribe(request *proto.SubscribeRequest, stream proto.Broker_
 	}
 
 	metrics.SuccessfullCalls.WithLabelValues("subscribe").Inc()
-	metrics.Subscriptions.Inc()
+	metrics.Subscriptions.Dec()
 	return nil
 }
 
