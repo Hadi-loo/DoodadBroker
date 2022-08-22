@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"strings"
 	"sync"
 	"therealbroker/pkg/broker"
 	"time"
@@ -30,7 +31,10 @@ type InMemory struct {
 }
 
 type PostgreSQL struct {
-	client *sql.DB
+	client  *sql.DB
+	queries []string
+	ticker  *time.Ticker
+	lock    sync.Mutex
 }
 
 const (
@@ -87,21 +91,70 @@ func newPostgresDatabase() *PostgreSQL {
 		log.Fatal(err)
 	}
 
+	ticker := time.NewTicker(time.Millisecond * 100)
 	fmt.Println("Successfully connected to PostgreSQL")
-	return &PostgreSQL{client: db}
+	psql := &PostgreSQL{
+		client: db,
+		ticker: ticker,
+	}
+	go psql.WriteMessages()
+	return psql
+}
+
+func (db *PostgreSQL) WriteMessages() {
+	for {
+		select {
+		case <-db.ticker.C:
+			if len(db.queries) > 0 {
+				db.lock.Lock()
+				query := fmt.Sprintf("INSERT INTO messages (id, subject, createTime, body, expirationSeconds) VALUES %s",
+					strings.Join(db.queries, ","))
+				db.queries = []string{}
+				db.lock.Unlock()
+				_, err := db.client.Exec(query)
+				if err != nil {
+					log.Fatal(err)
+				}
+			}
+		default:
+			if len(db.queries) > 100 {
+				db.lock.Lock()
+				query := fmt.Sprintf("INSERT INTO messages (id, subject, createTime, body, expirationSeconds) VALUES %s",
+					strings.Join(db.queries, ","))
+				db.queries = []string{}
+				db.lock.Unlock()
+				_, err := db.client.Exec(query)
+				if err != nil {
+					log.Fatal(err)
+				}
+			}
+		}
+	}
 }
 
 func (db *PostgreSQL) AddMessage(subject string, id int, message *broker.Message, createTime time.Time) error {
 
-	query := `
-	INSERT INTO messages (id, subject, createTime, body, expirationSeconds)
-	VALUES ($1, $2, $3, $4, $5)`
+	// without batching
+	// query := `
+	// INSERT INTO messages (id, subject, createTime, body, expirationSeconds)
+	// VALUES ($1, $2, $3, $4, $5)`
 
-	createTimeString := createTime.Format("2006-01-02 15:04:05")
-	_, err := db.client.Exec(query, id, subject, createTimeString, message.Body, message.Expiration.Seconds())
-	if err != nil {
-		return err
-	}
+	// createTimeString := createTime.Format("2006-01-02 15:04:05")
+	// _, err := db.client.Exec(query, id, subject, createTimeString, message.Body, message.Expiration.Seconds())
+	// if err != nil {
+	// 	return err
+	// }
+	// return nil
+
+	// with batching, this is still slower than the in-memory implementation but much faster than the without batching implementation
+	query := fmt.Sprintf(`
+	(%d, '%s', '%s', '%s', %f)`,
+		id, subject, createTime.Format("2006-01-02 15:04:05"), message.Body, message.Expiration.Seconds())
+
+	db.lock.Lock()
+	db.queries = append(db.queries, query)
+	db.lock.Unlock()
+
 	return nil
 }
 

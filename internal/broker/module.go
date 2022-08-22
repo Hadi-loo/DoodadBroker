@@ -19,7 +19,7 @@ func NewModule() broker.Broker {
 	return &Module{
 		topics:   make(map[string]*Topic),
 		closed:   false,
-		database: NewDatabase("inmemory"),
+		database: NewDatabase("postgres"),
 	}
 }
 
