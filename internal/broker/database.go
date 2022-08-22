@@ -9,6 +9,7 @@ import (
 	"therealbroker/pkg/broker"
 	"time"
 
+	"github.com/gocql/gocql"
 	_ "github.com/lib/pq"
 )
 
@@ -17,6 +18,22 @@ type Database interface {
 	FetchMessage(subject string, id int) (*broker.Message, time.Time, error)
 	RemoveMessage(subject string, id int) error
 }
+
+const (
+	psql_host     = "localhost"
+	psql_port     = 5432
+	psql_user     = "postgres"
+	psql_password = "password"
+	psql_dbname   = "BrokerDB"
+
+	cassandra_host          = "127.0.0.1"
+	cassandra_port          = 9042
+	cassandra_keyspace      = "broker"
+	cassandra_user          = ""
+	cassandra_password      = ""
+	cassandra_timeout       = time.Second * 10
+	cassandra_numberOfConns = 10
+)
 
 type InMemoryBlock struct {
 	subject    string
@@ -37,13 +54,21 @@ type PostgreSQL struct {
 	lock    sync.Mutex
 }
 
-const (
-	psql_host     = "localhost"
-	psql_port     = 5432
-	psql_user     = "postgres"
-	psql_password = "password"
-	psql_dbname   = "BrokerDB"
-)
+type CassandraMessage struct {
+	Subject    string
+	ID         int
+	Body       string
+	CreateTime time.Time
+	Expiration time.Duration
+}
+
+type Cassandra struct {
+	session  *gocql.Session
+	messages []CassandraMessage
+	channels []chan bool
+	ticker   *time.Ticker
+	lock     sync.Mutex
+}
 
 func NewDatabase(DBType string) Database {
 
@@ -52,9 +77,158 @@ func NewDatabase(DBType string) Database {
 		return newInMemoryDatabase()
 	case "postgres":
 		return newPostgresDatabase()
+	case "cassandra":
+		return newCassandraDatabase()
 	default:
 		return nil
 	}
+}
+
+// ================================================================================================
+
+func newCassandraDatabase() Database {
+
+	cluster := gocql.NewCluster(cassandra_host)
+	cluster.Keyspace = cassandra_keyspace
+	cluster.Authenticator = gocql.PasswordAuthenticator{
+		Username: cassandra_user,
+		Password: cassandra_password,
+	}
+	cluster.Port = cassandra_port
+	cluster.Consistency = gocql.Quorum
+	cluster.Timeout = cassandra_timeout
+	cluster.NumConns = cassandra_numberOfConns
+
+	session, err := cluster.CreateSession()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Println("Successfully connected to Cassandra")
+	cassandra := &Cassandra{
+		session:  session,
+		messages: make([]CassandraMessage, 0),
+		channels: make([]chan bool, 0),
+		ticker:   time.NewTicker(time.Millisecond * 100),
+	}
+
+	err = cassandra.session.Query(`
+		CREATE TABLE IF NOT EXISTS messages (
+			id 					int, 
+			subject 			varchar, 
+			createTime 			timestamp,
+			body 				text, 
+			expirationSeconds 	double, 
+			PRIMARY KEY 		((subject), id))`).Exec()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	go cassandra.WriteMessages()
+	return cassandra
+}
+
+func (db *Cassandra) WriteMessages() {
+
+	for {
+		select {
+		case <-db.ticker.C:
+			if len(db.messages) == 0 {
+				continue
+			}
+
+			batch := db.session.NewBatch(gocql.LoggedBatch)
+			stmt := "INSERT INTO messages (subject, id, body, createTime, expirationSeconds) VALUES (?, ?, ?, ?, ?)"
+			db.lock.Lock()
+			for _, message := range db.messages {
+				batch.Query(stmt, message.Subject, message.ID, message.Body, message.CreateTime, message.Expiration.Seconds())
+			}
+
+			err := db.session.ExecuteBatch(batch)
+			if err != nil {
+				db.lock.Unlock()
+				log.Fatal(err)
+				return
+			}
+
+			for _, channel := range db.channels {
+				channel <- true
+			}
+
+			db.messages = make([]CassandraMessage, 0)
+			db.channels = make([]chan bool, 0)
+			db.lock.Unlock()
+
+		default:
+			if len(db.messages) > 100 {
+				batch := db.session.NewBatch(gocql.LoggedBatch)
+				stmt := "INSERT INTO messages (subject, id, body, createTime, expirationSeconds) VALUES (?, ?, ?, ?, ?)"
+				db.lock.Lock()
+				for _, message := range db.messages {
+					batch.Query(stmt, message.Subject, message.ID, message.Body, message.CreateTime, message.Expiration.Seconds())
+				}
+
+				err := db.session.ExecuteBatch(batch)
+				if err != nil {
+					db.lock.Unlock()
+					log.Fatal(err)
+					return
+				}
+
+				for _, channel := range db.channels {
+					channel <- true
+				}
+
+				db.messages = make([]CassandraMessage, 0)
+				db.channels = make([]chan bool, 0)
+				db.lock.Unlock()
+			}
+		}
+	}
+}
+
+func (db *Cassandra) AddMessage(subject string, id int, message *broker.Message, createTime time.Time) error {
+	channel := make(chan bool)
+	db.lock.Lock()
+	db.messages = append(db.messages, CassandraMessage{
+		Subject:    subject,
+		ID:         id,
+		Body:       message.Body,
+		CreateTime: createTime,
+		Expiration: message.Expiration,
+	})
+	db.channels = append(db.channels, channel)
+	db.lock.Unlock()
+	<-channel
+	return nil
+}
+
+func (db *Cassandra) FetchMessage(subject string, id int) (*broker.Message, time.Time, error) {
+
+	stmt := "SELECT body, createTime, expirationSeconds FROM messages WHERE subject = ? AND id = ?"
+	var body string
+	var createTime time.Time
+	var expiration time.Duration
+	err := db.session.Query(stmt, subject, id).Scan(&body, &createTime, &expiration)
+	if err != nil {
+		return nil, createTime, err
+	}
+
+	return &broker.Message{
+		Body:       body,
+		Expiration: expiration,
+	}, createTime, nil
+}
+
+func (db *Cassandra) RemoveMessage(subject string, id int) error {
+
+	stmt := "DELETE FROM messages WHERE subject = ? AND id = ?"
+	err := db.session.Query(stmt, subject, id).Exec()
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // ================================================================================================
