@@ -5,24 +5,33 @@ import (
 	"sync"
 	"therealbroker/pkg/broker"
 	"time"
+
+	"github.com/go-redis/redis"
 )
 
 type IDGenerator struct {
-	lastID int
-	lock   sync.Mutex
+	// lastID int
+	// lock   sync.Mutex
+	client *redis.Client
 }
 
 func NewIDGenerator() *IDGenerator {
-	return &IDGenerator{
-		lastID: 0,
-	}
+
+	client := redis.NewClient(&redis.Options{
+		Addr:     "localhost:6379",
+		Password: "",
+		DB:       0,
+	})
+	return &IDGenerator{client: client}
 }
 
-func (idGen *IDGenerator) GetNewID() int {
-	idGen.lock.Lock()
-	defer idGen.lock.Unlock()
-	idGen.lastID++
-	return idGen.lastID
+func (idGen *IDGenerator) GetNewID(subject string) int {
+	// idGen.lock.Lock()
+	// defer idGen.lock.Unlock()
+	// idGen.lastID++
+	// return idGen.lastID
+	res, _ := idGen.client.Incr(subject).Result()
+	return int(res)
 }
 
 type Topic struct {
@@ -45,7 +54,7 @@ func NewTopic(subject string, database Database) *Topic {
 }
 
 func (topic *Topic) AddMessage(msg *broker.Message, createTime time.Time) int {
-	messageID := topic.id_generator.GetNewID()
+	messageID := topic.id_generator.GetNewID(topic.subject)
 	err := topic.database.AddMessage(topic.subject, messageID, msg, createTime)
 	if err != nil {
 		fmt.Println(err)
