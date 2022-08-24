@@ -18,7 +18,7 @@ type IDGenerator struct {
 func NewIDGenerator() *IDGenerator {
 
 	client := redis.NewClient(&redis.Options{
-		Addr:     "localhost:6379",
+		Addr:     "redis:6379",
 		Password: "",
 		DB:       0,
 	})
@@ -31,6 +31,9 @@ func (idGen *IDGenerator) GetNewID(subject string) int {
 	// idGen.lastID++
 	// return idGen.lastID
 	res, _ := idGen.client.Incr(subject).Result()
+
+	fmt.Println(res)
+
 	return int(res)
 }
 

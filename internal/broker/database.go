@@ -26,7 +26,7 @@ const (
 	psql_password = "password"
 	psql_dbname   = "BrokerDB"
 
-	cassandra_host          = "127.0.0.1"
+	cassandra_host          = "cassandra"
 	cassandra_port          = 9042
 	cassandra_keyspace      = "broker"
 	cassandra_user          = ""
@@ -88,6 +88,29 @@ func NewDatabase(DBType string) Database {
 
 func newCassandraDatabase() Database {
 
+	syscluster := gocql.NewCluster(cassandra_host)
+	syscluster.Keyspace = "system"
+
+	var (
+		session *gocql.Session
+		err     error
+	)
+	for i := 1; i < 20; i++ {
+		session, err = syscluster.CreateSession()
+		if err == nil {
+			break
+		}
+		time.Sleep(time.Second * time.Duration(i))
+	}
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	err = session.Query("CREATE KEYSPACE IF NOT EXISTS broker WITH replication = {'class': 'SimpleStrategy', 'replication_factor' : 1};").Exec()
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	cluster := gocql.NewCluster(cassandra_host)
 	cluster.Keyspace = cassandra_keyspace
 	cluster.Authenticator = gocql.PasswordAuthenticator{
@@ -99,7 +122,13 @@ func newCassandraDatabase() Database {
 	cluster.Timeout = cassandra_timeout
 	cluster.NumConns = cassandra_numberOfConns
 
-	session, err := cluster.CreateSession()
+	for i := 1; i < 20; i++ {
+		session, err = cluster.CreateSession()
+		if err == nil {
+			break
+		}
+		time.Sleep(time.Second * time.Duration(i))
+	}
 	if err != nil {
 		log.Fatal(err)
 	}
