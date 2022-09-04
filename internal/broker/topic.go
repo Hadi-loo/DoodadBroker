@@ -32,7 +32,7 @@ func (idGen *IDGenerator) GetNewID(subject string) int {
 	// return idGen.lastID
 	res, _ := idGen.client.Incr(subject).Result()
 
-	fmt.Println(res)
+	// fmt.Println(res)
 
 	return int(res)
 }
@@ -71,7 +71,7 @@ func (topic *Topic) AddMessage(msg *broker.Message, createTime time.Time) int {
 func (topic *Topic) Publish(msg broker.Message, createTime time.Time) int {
 	messageID := topic.AddMessage(&msg, createTime)
 	for _, subscriber := range topic.subscribers {
-		subscriber.AddMessageToQueue(&msg)
+		subscriber.OutChannel <- msg
 	}
 	return messageID
 }

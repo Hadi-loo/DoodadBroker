@@ -78,10 +78,9 @@ func (m *Module) Subscribe(ctx context.Context, subject string) (<-chan broker.M
 		return nil, err
 	}
 
-	channel := make(chan broker.Message, 1000) // TODO: make this a buffered channel
+	channel := make(chan broker.Message, 100000) // TODO: make this a buffered channel
 	newSubsriber := NewSubscriber(ctx, channel)
 	topic.AddSubscriber(newSubsriber)
-	go newSubsriber.Listen()
 	return channel, nil
 }
 

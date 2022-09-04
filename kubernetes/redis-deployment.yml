@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis-deployment
+  labels:
+    app: message-broker
+    run: redis
+spec:
+  template:
+    metadata:
+      name: redis-pod
+      labels:
+        app: message-broker
+        run: redis
+    spec:
+      containers:
+        - name: redis-container
+          image: dockerhub.ir/redis:alpine
+          ports:
+            - containerPort: 6379
+          resources:
+            limits:
+              cpu: 2
+              memory: 3Gi
+            requests:
+              cpu: 2
+              memory: 3Gi
+  replicas: 1
+  selector:
+    matchLabels:
+      app: message-broker

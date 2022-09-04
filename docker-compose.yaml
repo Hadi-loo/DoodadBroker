@@ -1,7 +1,7 @@
 version: '3'
 services:
   broker:
-    build: .
+    image: broker
     container_name: broker
     ports:
       - "8080:8080"
@@ -9,6 +9,7 @@ services:
     depends_on:
       - redis
       - cassandra
+      - prometheus
 
   redis:
     image: redis
@@ -22,3 +23,11 @@ services:
     ports:
       - "9042:9042"
   
+  prometheus:
+    image: prom/prometheus
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    command: --config.file=/etc/prometheus/prometheus.yml

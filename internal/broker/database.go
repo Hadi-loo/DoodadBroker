@@ -26,13 +26,13 @@ const (
 	psql_password = "password"
 	psql_dbname   = "BrokerDB"
 
-	cassandra_host          = "cassandra"
-	cassandra_port          = 9042
-	cassandra_keyspace      = "broker"
-	cassandra_user          = ""
-	cassandra_password      = ""
-	cassandra_timeout       = time.Second * 10
-	cassandra_numberOfConns = 10
+	cassandra_host     = "cassandra"
+	cassandra_port     = 9042
+	cassandra_keyspace = "broker"
+	cassandra_user     = ""
+	cassandra_password = ""
+	cassandra_timeout  = time.Second * 10
+	// cassandra_numberOfConns = 10
 )
 
 type InMemoryBlock struct {
@@ -120,7 +120,7 @@ func newCassandraDatabase() Database {
 	cluster.Port = cassandra_port
 	cluster.Consistency = gocql.Quorum
 	cluster.Timeout = cassandra_timeout
-	cluster.NumConns = cassandra_numberOfConns
+	// cluster.NumConns = cassandra_numberOfConns
 
 	for i := 1; i < 20; i++ {
 		session, err = cluster.CreateSession()
@@ -138,7 +138,7 @@ func newCassandraDatabase() Database {
 		session:  session,
 		messages: make([]CassandraMessage, 0),
 		channels: make([]chan bool, 0),
-		ticker:   time.NewTicker(time.Millisecond * 100),
+		ticker:   time.NewTicker(time.Millisecond * 150),
 	}
 
 	err = cassandra.session.Query(`
@@ -189,28 +189,36 @@ func (db *Cassandra) WriteMessages() {
 			db.lock.Unlock()
 
 		default:
-			if len(db.messages) > 100 {
+			if len(db.messages) > 3000 {
 				batch := db.session.NewBatch(gocql.LoggedBatch)
 				stmt := "INSERT INTO messages (subject, id, body, createTime, expirationSeconds) VALUES (?, ?, ?, ?, ?)"
+
 				db.lock.Lock()
+
 				for _, message := range db.messages {
 					batch.Query(stmt, message.Subject, message.ID, message.Body, message.CreateTime, message.Expiration.Seconds())
 				}
 
+				db.messages = make([]CassandraMessage, 0)
+
+				tmp_channels := make([]chan bool, 0)
+				for _, channel := range db.channels {
+					tmp_channels = append(tmp_channels, channel)
+				}
+				db.channels = make([]chan bool, 0)
+
+				db.lock.Unlock()
+
 				err := db.session.ExecuteBatch(batch)
 				if err != nil {
-					db.lock.Unlock()
 					log.Fatal(err)
 					return
 				}
 
-				for _, channel := range db.channels {
+				for _, channel := range tmp_channels {
 					channel <- true
 				}
 
-				db.messages = make([]CassandraMessage, 0)
-				db.channels = make([]chan bool, 0)
-				db.lock.Unlock()
 			}
 		}
 	}

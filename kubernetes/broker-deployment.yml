@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: broker-deployment
+  labels:
+    app: message-broker
+spec:
+  template:
+    metadata:
+      name: broker-pod
+      labels:
+        app: message-broker
+    spec:
+      containers:
+        - name: broker-container
+          image: dockerproxy.bale.ai/lankyllama/message-broker5
+          ports:
+            - name: broker-grpc
+              containerPort: 8080
+            - name: prometheus
+              containerPort: 8081
+          resources:
+            limits:
+              cpu: 10
+              memory: 5Gi
+            requests:
+              cpu: 10
+              memory: 5Gi
+  replicas: 1
+  selector:
+    matchLabels:
+      app: message-broker

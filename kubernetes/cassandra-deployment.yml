@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cassandra-deployment
+  labels:
+    app: message-broker
+    run: cassandra
+spec:
+  template:
+    metadata:
+      name: cassandra-pod
+      labels:
+        app: message-broker
+        run: cassandra
+    spec:
+      containers:
+        - name: cassandra-container
+          image: dockerhub.ir/cassandra:3.11
+          ports:
+            - containerPort: 9042
+          resources:
+            limits:
+              cpu: 4
+              memory: 22Gi
+            requests:
+              cpu: 4
+              memory: 16Gi
+  replicas: 1
+  selector:
+    matchLabels:
+      app: message-broker

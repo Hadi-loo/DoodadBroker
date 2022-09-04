@@ -68,13 +68,13 @@ func (s *Server) Subscribe(request *proto.SubscribeRequest, stream proto.Broker_
 	defer metrics.Latency.WithLabelValues("subscribe").Observe(float64(time.Since(start_time).Nanoseconds()))
 
 	ctx := stream.Context()
-	topic, err := broker.Subscribe(ctx, request.Subject)
+	outputChannel, err := broker.Subscribe(ctx, request.Subject)
 	if err != nil {
 		metrics.FailedCalls.WithLabelValues("subscribe").Inc()
 		return ConvertError(err)
 	}
 	metrics.Subscriptions.Inc()
-	for message := range topic {
+	for message := range outputChannel {
 		response := &proto.MessageResponse{Body: message.Body}
 		if err := stream.Send(response); err != nil {
 			metrics.FailedCalls.WithLabelValues("subscribe").Inc() // should it be here?
