@@ -10,3 +10,33 @@ Features:
 DoodalBroker can have several topics and each message published to certain topic will be broadcasted
 to all subscribers to that topic.
 
+# RPCs Description
+- Publish Requst
+```protobuf
+message PublishRequest {
+  string subject = 1;
+  bytes body = 2;
+  int32 expirationSeconds = 3;
+}
+```
+- Fetch Request
+```protobuf
+message FetchRequest {
+  string subject = 1;
+  int32 id = 2;
+}
+```
+- Subscribe Request
+```protobuf
+message SubscribeRequest {
+  string subject = 1;
+}
+```
+- RPC Service
+```protobuf
+service Broker {
+  rpc Publish (PublishRequest) returns (PublishResponse);
+  rpc Subscribe(SubscribeRequest) returns (stream MessageResponse);
+  rpc Fetch(FetchRequest) returns (MessageResponse);
+}
+```
