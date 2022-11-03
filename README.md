@@ -1,25 +1,12 @@
-# Welcome project for newcomers!
+# Doodal Broker: A Broker Implemented in GO
 
-# Introduction
-In this project you have to implement a message broker, based on `broker.Broker`
-interface. There are unit tests to specify requirements and also validate your implementation.
+ChizBroker is a fast and simple GRPC based implementation of kafka.
+Features:
+- Ready to be deployed on kubernetes
+- Prometheus metrics
+- All message get stored in DB (supporting PostgreSQL, Cassandra and local memory)
 
-# Roadmap
-- [ ] Implement `broker.Broker` interface and pass all tests
-- [ ] Add basic logs and prometheus metrics
-  - Metrics for each RPCs:
-    - `method_count` to show count of failed/successful RPC calls
-    - `method_duration` for latency of each call, in 99, 95, 50 quantiles
-    - `active_subscribers` to display total active subscriptions
-  - Env metrics:
-    - Metrics for your application memory, cpu load, cpu utilization, GCs
-- [ ] Implement gRPC API for the broker and main functionalities
-- [ ] Create *dockerfile* and *docker-compose* files for your deployment
-- [ ] Deploy your app with the previous `docker-compose` on a remote machine
-- [ ] Deploy your app on K8
+# Architecture
+DoodalBroker can have several topics and each message published to certain topic will be broadcasted
+to all subscribers to that topic.
 
-# Phase 2 Evaluation
-We run our gRPC client that implemented the `broker.proto` against your deployed broker application.
-
-As it should function properly ( like the unit tests ), we expect the provided metrics to display a good observation, and if
-anything unexpected happened, you could diagnose your app, using the logs and other tools.
